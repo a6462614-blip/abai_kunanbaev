@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Абай Кунанбаев: Викторина «Слова назидания» ✨</title>
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=Nunito:wght@600;800;900&display=swap');
+
+        :root {
+            --bg-color: #fce4ec;
+            --card-bg: #ffffff;
+            --primary: #ff4081;
+            --primary-hover: #f50057;
+            --secondary: #7c4dff;
+            --accent: #ffd700;
+            --text: #2c3e50;
+            --correct: #00e676;
+            --wrong: #ff5252;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* Аниме-облака на фоне */
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50px;
+            z-index: -1;
+            animation: float 20s infinite linear;
+        }
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+        }
+        .cloud1 { width: 120px; height: 40px; top: 10%; left: -150px; }
+        .cloud1::before { width: 50px; height: 50px; top: -20px; left: 20px; }
+        .cloud1::after { width: 40px; height: 40px; top: -10px; right: 20px; }
+
+        @keyframes float {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(120vw); }
+        }
+
+        .app-container {
+            width: 90%;
+            max-width: 800px;
+            background: var(--card-bg);
+            border-radius: 30px;
+            border: 6px solid #3f51b5;
+            box-shadow: 0 20px 0 #1a237e, 0 25px 30px rgba(0,0,0,0.2);
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-family: 'Comfortaa', cursive;
+            color: #3f51b5;
+            text-shadow: 3px 3px 0px var(--accent);
+            font-size: 2.2rem;
+            margin-top: 0;
+        }
+
+        /* Камера и трекер */
+        .camera-box {
+            position: absolute;
+            top: -70px;
+            right: 10px;
+            width: 140px;
+            height: 105px;
+            border-radius: 15px;
+            border: 4px solid var(--secondary);
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        video { display: none; }
+        canvas { width: 100%; height: 100%; transform: scaleX(-1); }
+
+        .gesture-indicator {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        /* Кнопки */
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 var(--primary-hover);
+            transition: all 0.1s ease;
+            margin: 10px;
+            font-family: 'Comfortaa', cursive;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 var(--primary-hover);
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--primary-hover);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .option-btn {
+            background: #f0f4c3;
+            color: #33691e;
+            border: 4px solid #c0ca33;
+            padding: 15px 20px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #9e9d24;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+        }
+
+        .option-btn:hover {
+            background: #dce775;
+            transform: scale(1.02);
+        }
+
+        .option-btn.correct {
+            background: var(--correct) !important;
+            border-color: #00b0ff !important;
+            color: white !important;
+            box-shadow: 0 5px 0 #0091ea !important;
+        }
+
+        .option-btn.wrong {
+            background: var(--wrong) !important;
+            border-color: #d50000 !important;
+            color: white !important;
+            box-shadow: 0 5px 0 #9b0000 !important;
+        }
+
+        .option-badge {
+            background: #fff;
+            color: #000;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-weight: 900;
+            flex-shrink: 0;
+        }
+
+        /* Панель прогресса */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            background: #e8eaf6;
+            padding: 10px 20px;
+            border-radius: 15px;
+        }
+
+        /* Рефлексия */
+        .reflection-card {
+            background: #fff9c4;
+            border: 4px dashed #fbc02d;
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .hidden { display: none; }
+
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="cloud cloud1"></div>
+
+    <div class="app-container">
+        <!-- Блок видеопотока для MediaPipe -->
+        <div class="camera-box">
+            <video id="webcam" playsinline></video>
+            <canvas id="canvas_output"></canvas>
+            <div class="gesture-indicator" id="gesture_text">Жест: Нет</div>
+        </div>
+
+        <!-- Заголовок и Управление звуком/камерой -->
+        <h1>📚 Абай: Слова назидания 🌸</h1>
+        <div class="control-panel">
+            <button class="btn" style="padding: 8px 15px; font-size: 0.9rem; background: var(--secondary); box-shadow: 0 4px 0 #512da8;" onclick="toggleAudio()">🎵 Музыка</button>
+            <button class="btn" style="padding: 8px 15px; font-size: 0.9rem; background: #00b0ff; box-shadow: 0 4px 0 #0288d1;" onclick="startCamera()">📷 Камера (Жесты)</button>
+        </div>
+
+        <!-- ЭКРАН 1: СТАРТ -->
+        <div id="start-screen">
+            <p style="font-size: 1.3rem; font-weight: 700;">Привет! Готов проверить свои знания мудрости Великого Абая в веселом аниме-стиле?</p>
+            <p style="font-size: 0.95rem; color: #555;">💡 <i>Подсказка: Вы можете отвечать нажатием мыши или показывать <b>1, 2, 3 или 4 пальца</b> в камеру!</i></p>
+            <button class="btn" onclick="startQuiz()">ПОЕХАЛИ! 🚀</button>
+        </div>
+
+        <!-- ЭКРАН 2: ВИКТОРИНА -->
+        <div id="quiz-screen" class="hidden">
+            <div class="status-bar">
+                <span>Вопрос: <span id="q-num">1</span>/10</span>
+                <span>Баллы: <span id="score">0</span> ⭐</span>
+            </div>
+
+            <div style="min-height: 80px; display: flex; align-items: center; justify-content: center;">
+                <h2 id="question-text" style="font-size: 1.3rem; margin: 0;">Загрузка вопроса...</h2>
+            </div>
+
+            <div class="options-grid" id="options-container">
+                <!-- Кнопки генерируются динамически -->
+            </div>
+        </div>
+
+        <!-- ЭКРАН 3: ИТОГИ И РЕФЛЕКСИЯ -->
+        <div id="result-screen" class="hidden">
+            <h2>🎉 Викторина Завершена! 🎉</h2>
+            <p style="font-size: 1.5rem; font-weight: 900;">Твой результат: <span id="final-score" style="color: var(--primary);">0</span> из 10 баллов!</p>
+            
+            <div id="feedback-badge" style="font-size: 1.2rem; font-weight: 800; margin-bottom: 15px;"></div>
+
+            <!-- Блок рефлексии -->
+            <div class="reflection-card">
+                <h3 style="margin-top: 0; color: #f57f17; text-align: center;">🤔 Минутка Рефлексии</h3>
+                <p id="reflection-text">Подумай над этим...</p>
+            </div>
+
+            <button class="btn" onclick="restartQuiz()">Пройти снова 🔄</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. БАЗА ВОПРОСОВ (10 вопросов по Словам назидания)
+        const quizData = [
+            {
+                q: "В каком Слове Абай размышляет о своем жизненном пути и пишет: «Хорошо ли я прожил до сегодняшнего дня, плохо ли...»?",
+                options: ["В Слове Первом", "В Слове Десятом", "В Слове Сороковом", "В Слове Сорок пятом"],
+                correct: 0,
+                reflect: "Первое слово — это начало самопознания. Абай учит нас регулярно анализировать свои поступки."
+            },
+            {
+                q: "Какое качество человеческой души Абай ставит выше всего и называет источником истинного человеколюбия?",
+                options: ["Богатство", "Горячее сердце (Жүрек)", "Хитрость", "Знание языков без морали"],
+                correct: 1,
+                reflect: "Разум и сила должны подчиняться Сердцу — только так человек остается человеком."
+            },
+            {
+                q: "О чем говорит Абай во Втором слове назидания?",
+                options: ["О торговле и скотоводстве", "О воспитании детей", "О национальных стереотипах и уважении к другим народам", "О поэзии"],
+                correct: 2,
+                reflect: "Уважение к другим народам и перенимание их лучших качеств — ключ к развитию."
+            },
+            {
+                q: "Главный порог человечества, по мнению Абая, мешающий развитию и знаниям — это:",
+                options: ["Скромность", "Лень (Еріншектік)", "Любознательность", "Трудолюбие"],
+                correct: 1,
+                reflect: "Лень и безделье порождают все остальные пороки общества. Борьба с лень - главная задача!"
+            },
+            {
+                q: "Какому важному вопросу посвящено Седьмое слово Абая?",
+                options: ["Потребностям тела и стремлению души к знаниям с рождения", "Правилам верховой езды", "Законам степи", "Военному делу"],
+                correct: 0,
+                reflect: "Человек рождается с жаждой познания («хочу все знать»). Важно не угасить этот огонь в себе!"
+            },
+            {
+                q: "В Восемнадцатом слове Абай рассуждает о щегольстве и одежде. Что он считает истинной красотой?",
+                options: ["Дорогие шелка", "Внутреннюю культуру и ума умеренность", "Много золотых украшений", "Высокий рост"],
+                correct: 1,
+                reflect: "Внешний лоск без внутреннего наполнения — лишь пустая оболочка."
+            },
+            {
+                q: "К чему призывает Абай молодежь в Тридцать пятом слове?",
+                options: ["К накоплению богатства любыми путями", "К честному труду и ремеслу", "К безделью и праздности", "К уходу в горы"],
+                correct: 1,
+                reflect: "Честный труд дает независимость и достоинство каждому человеку."
+            },
+            {
+                q: "Что Абай считает главным инструментом для расширения кругозора и связи с миром?",
+                options: ["Изучение наук и иностранных языков", "Силу оружия", "Затворничество", "Умение спорить"],
+                correct: 0,
+                reflect: "Изучение языков открывает двери к мировой культуре и науке."
+            },
+            {
+                q: "В Сорок пятом слове Абай подводит итог и говорит, что в основе человечности лежит:",
+                options: ["Любовь и справедливость", "Страх перед наказанием", "Суеверие", "Жажда славы"],
+                correct: 0,
+                reflect: "Любовь к людям и справедливость — высшие духовные ценности по Абаю."
+            },
+            {
+                q: "Сколько всего «Слов назидания» (Кара сөздер) написал Абай Кунанбаев?",
+                options: ["30", "40", "45", "50"],
+                correct: 2,
+                reflect: "45 мудрых притч и философских трактатов составляют фундаментальное наследие Абая."
+            }
+        ];
+
+        let currentQ = 0;
+        let score = 0;
+        let canAnswer = true;
+
+        // 2. ЗВУКОВОЙ ДВИЖОК (Web Audio API для мультяшной музыки без внешних файлов)
+        let audioCtx = null;
+        let isMusicPlaying = false;
+        let musicInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playNote(freq, type='sine', duration=0.2) {
+            if(!audioCtx) return;
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function toggleAudio() {
+            initAudio();
+            if(isMusicPlaying) {
+                clearInterval(musicInterval);
+                isMusicPlaying = false;
+            } else {
+                isMusicPlaying = true;
+                const notes = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23]; // Мультяшная веселая гамма
+                let idx = 0;
+                musicInterval = setInterval(() => {
+                    playNote(notes[idx % notes.length], 'triangle', 0.25);
+                    idx++;
+                }, 300);
+            }
+        }
+
+        function playSoundEffect(isCorrect) {
+            initAudio();
+            if(isCorrect) {
+                playNote(523.25, 'sine', 0.1);
+                setTimeout(() => playNote(659.25, 'sine', 0.2), 100);
+            } else {
+                playNote(200, 'sawtooth', 0.3);
+            }
+        }
+
+        // 3. ЛОГИКА ВИКТОРИНЫ
+        function startQuiz() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+            currentQ = 0;
+            score = 0;
+            showQuestion();
+        }
+
+        function showQuestion() {
+            canAnswer = true;
+            const q = quizData[currentQ];
+            document.getElementById('q-num').innerText = currentQ + 1;
+            document.getElementById('score').innerText = score;
+            document.getElementById('question-text').innerText = q.q;
+
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+
+            const badges = ['A', 'B', 'C', 'D'];
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerHTML = `<span class="option-badge">${badges[index]}</span> ${opt}`;
+                btn.onclick = () => selectAnswer(index);
+                container.appendChild(btn);
+            });
+        }
+
+        function selectAnswer(index) {
+            if(!canAnswer) return;
+            canAnswer = false;
+
+            const q = quizData[currentQ];
+            const buttons = document.querySelectorAll('.option-btn');
+            
+            if(index === q.correct) {
+                buttons[index].classList.add('correct');
+                score++;
+                playSoundEffect(true);
+            } else {
+                buttons[index].classList.add('wrong');
+                buttons[q.correct].classList.add('correct');
+                playSoundEffect(false);
+            }
+
+            document.getElementById('score').innerText = score;
+
+            setTimeout(() => {
+                currentQ++;
+                if(currentQ < quizData.length) {
+                    showQuestion();
+                } else {
+                    showResults();
+                }
+            }, 1800);
+        }
+
+        function showResults() {
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+
+            let badge = "";
+            if(score === 10) badge = "🌟 Мудрец и эксперт по Абаю!";
+            else if(score >= 7) badge = "👏 Отличный результат! У тебя широкие знания.";
+            else badge = "📖 Хорошая попытка! «Слова назидания» ждут твоего прочтения.";
+            document.getElementById('feedback-badge').innerText = badge;
+
+            // Сборка рефлексии
+            let reflections = quizData.map((item, idx) => `<b>Вопрос ${idx+1}:</b> ${item.reflect}`).join('<br><br>');
+            document.getElementById('reflection-text').innerHTML = reflections;
+        }
+
+        function restartQuiz() {
+            document.getElementById('result-screen').classList.add('hidden');
+            startQuiz();
+        }
+
+        // 4. ТРЕКЕР РУК (MediaPipe Hands Integration)
+        let videoElement = document.getElementById('webcam');
+        let canvasElement = document.getElementById('canvas_output');
+        let canvasCtx = canvasElement.getContext('2d');
+        let gestureText = document.getElementById('gesture_text');
+
+        let lastGestureTime = 0;
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                let landmarks = results.multiHandLandmarks[0];
+                
+                // Простая логика подсчета поднятых пальцев (Указательный, Средний, Безымянный, Мизинец)
+                let count = 0;
+                if (landmarks[8].y < landmarks[6].y) count++;  // Указательный
+                if (landmarks[12].y < landmarks[10].y) count++; // Средний
+                if (landmarks[16].y < landmarks[14].y) count++; // Безымянный
+                if (landmarks[20].y < landmarks[18].y) count++; // Мизинец
+
+                gestureText.innerText = `Пальцев: ${count}`;
+
+                // Выбор ответа по жесту (с задержкой 1.5 сек чтобы избежать спама)
+                let now = Date.now();
+                if (count >= 1 && count <= 4 && canAnswer && (now - lastGestureTime > 1500)) {
+                    if(!document.getElementById('quiz-screen').classList.contains('hidden')) {
+                        lastGestureTime = now;
+                        selectAnswer(count - 1); // 1 палец -> 0 (A), 2 пальца -> 1 (B) и т.д.
+                    }
+                }
+            } else {
+                gestureText.innerText = "Жест: Не виден";
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        function startCamera() {
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 320,
+                height: 240
+            });
+            camera.start();
+            alert("Камера включена! Показывайте 1, 2, 3 или 4 пальца для выбора вариантов A, B, C, D.");
+        }
+    </script>
+</body>
+</html>

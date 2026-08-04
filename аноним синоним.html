@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сладкие Слова - Игра: Подлежащее и Сказуемое</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            --radius: 20px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+            background: var(--bg-gradient);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Окно веб-камеры */
+        #webcam-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 220px;
+            height: 165px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            border: 4px solid white;
+            transform: scaleX(-1); /* Зеркальное отображение для удобства */
+            z-index: 10;
+            background: #000;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+        }
+
+        /* Панель интерфейса */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: none;
+        }
+
+        .score-board {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px 25px;
+            border-radius: var(--radius);
+            font-size: 22px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border: 3px solid #4bc0c0;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .task-board {
+            background: #ff6b81;
+            color: white;
+            padding: 15px 35px;
+            border-radius: var(--radius);
+            font-size: 26px;
+            font-weight: bold;
+            box-shadow: 0 6px 20px rgba(255, 107, 129, 0.4);
+            border: 3px solid white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            background: white;
+            padding: 20px 40px;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            z-index: 20;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">Игра и трекер рук загружаются...<br><span style="font-size: 16px; color: #888;">Пожалуйста, разрешите доступ к камере</span></div>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="score-board">✨ Очки: <span id="score">0</span></div>
+            <div class="task-board" id="task-text">Загрузка задания...</div>
+        </div>
+
+        <div id="webcam-container">
+            <video id="webcam" autoplay playsinline></video>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('gameCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const taskTextElement = document.getElementById('task-text');
+        const loadingElement = document.getElementById('loading');
+
+        let score = 0;
+        let pointerX = 0, pointerY = 0;
+        
+        const sweetEmojis = ['🍬', '🍭', '🧁', '🍩', '🍫', '🍦', '🍰'];
+        
+        // Список слов на русском (Подлежащие и Сказуемые)
+        const nouns = ['Мальчик', 'Ученик', 'Птица', 'Мама', 'Папа', 'Котёнок', 'Солнце', 'Учитель', 'Книга', 'Дерево', 'Друг', 'Врач', 'Повар', 'Космонавт', 'Ягода'];
+        const verbs = ['пришёл', 'читал', 'бежал', 'улыбнулся', 'написал', 'играл', 'полетел', 'говорил', 'танцевал', 'нарисовал', 'заснул', 'увидел', 'слушал', 'плыл', 'прыгал'];
+
+        let currentTask = 'SUBJECT'; // 'SUBJECT' (Подлежащее) или 'PREDICATE' (Сказуемое)
+        let targetSweets = [];
+
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Генерация нового задания
+        function generateNewTask() {
+            currentTask = Math.random() > 0.5 ? 'SUBJECT' : 'PREDICATE';
+            if (currentTask === 'SUBJECT') {
+                taskTextElement.innerText = '🎯 Найди ПОДЛЕЖАЩЕЕ! (Кто? Что?)';
+                taskTextElement.style.background = '#ff6b81';
+            } else {
+                taskTextElement.style.background = '#4a90e2';
+                taskTextElement.innerText = '🎯 Найди СКАЗУЕМОЕ! (Что делал? Что сделал?)';
+            }
+        }
+
+        // Создание сладости со словом
+        function spawnSweet() {
+            const isNoun = Math.random() > 0.5;
+            const word = isNoun 
+                ? nouns[Math.floor(Math.random() * nouns.length)] 
+                : verbs[Math.floor(Math.random() * verbs.length)];
+            
+            return {
+                x: Math.random() * (canvasElement.width - 250) + 120,
+                y: canvasElement.height + 60,
+                speed: Math.random() * 1.5 + 1.5, // Скорость адаптирована для чтения детьми
+                emoji: sweetEmojis[Math.floor(Math.random() * sweetEmojis.length)],
+                word: word,
+                type: isNoun ? 'SUBJECT' : 'PREDICATE',
+                size: 50
+            };
+        }
+
+        // Начальная инициализация сладостей
+        for(let i = 0; i < 4; i++) {
+            targetSweets.push(spawnSweet());
+            targetSweets[i].y = Math.random() * (canvasElement.height - 200) + 200;
+        }
+
+        generateNewTask();
+
+        function onResults(results) {
+            if (loadingElement) loadingElement.style.display = 'none';
+
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 1. Отрисовка сладостей и слов
+            targetSweets.forEach((sweet, index) => {
+                sweet.y -= sweet.speed;
+
+                if (sweet.y < -60) {
+                    targetSweets[index] = spawnSweet();
+                }
+
+                // Рисуем эмодзи сладости
+                canvasCtx.font = `${sweet.size}px Arial`;
+                canvasCtx.textAlign = 'center';
+                canvasCtx.textBaseline = 'middle';
+                canvasCtx.fillText(sweet.emoji, sweet.x, sweet.y);
+
+                // Рисуем плашку для текста
+                canvasCtx.font = 'bold 20px "Comic Sans MS", sans-serif';
+                const textWidth = canvasCtx.measureText(sweet.word).width;
+                
+                canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                canvasCtx.beginPath();
+                canvasCtx.roundRect(sweet.x - textWidth/2 - 10, sweet.y + 35, textWidth + 20, 30, 10);
+                canvasCtx.fill();
+
+                // Рисуем само слово
+                canvasCtx.fillStyle = '#2d3748';
+                canvasCtx.fillText(sweet.word, sweet.x, sweet.y + 50);
+            });
+
+            // 2. Обработка движений рук (Камера)
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const hand = results.multiHandLandmarks[0];
+                const indexFingerTip = hand[8]; // Указательный палец
+
+                pointerX = (1 - indexFingerTip.x) * canvasElement.width;
+                pointerY = indexFingerTip.y * canvasElement.height;
+
+                // Волшебный курсор на кончике пальца
+                canvasCtx.beginPath();
+                canvasCtx.arc(pointerX, pointerY, 15, 0, 2 * Math.PI);
+                canvasCtx.fillStyle = 'rgba(255, 234, 0, 0.8)';
+                canvasCtx.fill();
+                canvasCtx.strokeStyle = '#ff6b81';
+                canvasCtx.lineWidth = 3;
+                canvasCtx.stroke();
+
+                // 3. Проверка столкновения (Лопание сладостей)
+                targetSweets.forEach((sweet, index) => {
+                    let dist = Math.hypot(sweet.x - pointerX, (sweet.y + 25) - pointerY);
+                    
+                    if (dist < 50) {
+                        if (sweet.type === currentTask) {
+                            // Правильный выбор
+                            score += 10;
+                            canvasCtx.fillStyle = '#2ecc71';
+                            canvasCtx.font = 'bold 30px Arial';
+                            canvasCtx.fillText('+10 Верно! 🎉', sweet.x, sweet.y - 40);
+                            generateNewTask(); // Меняем задание
+                        } else {
+                            // Ошибка
+                            score = Math.max(0, score - 5);
+                            canvasCtx.fillStyle = '#e74c3c';
+                            canvasCtx.font = 'bold 30px Arial';
+                            canvasCtx.fillText('-5 Ошибка! 😢', sweet.x, sweet.y - 40);
+                        }
+                        
+                        scoreElement.innerText = score;
+                        targetSweets[index] = spawnSweet(); // Заменяем лопнувшее слово
+                    }
+                });
+            }
+        }
+
+        // Настройки MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+    </script>
+</body>
+</html>

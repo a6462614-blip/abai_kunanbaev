@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Музыкальная Викторина: 10 Падежей</title>
+    <!-- Подключаем MediaPipe для распознавания рук -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fredoka', cursive, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* Орнаменты */
+        .ornament {
+            position: absolute;
+            width: 130px;
+            height: 130px;
+            opacity: 0.35;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .ornament-tl { top: 10px; left: 10px; }
+        .ornament-tr { top: 10px; right: 10px; transform: scaleX(-1); }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1100px;
+            width: 100%;
+            z-index: 2;
+            align-items: stretch;
+        }
+
+        /* Кнопка включения / выключения звука */
+        .sound-btn {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 100;
+            background: #ffd166;
+            border: 3px solid #ffb703;
+            border-radius: 50px;
+            padding: 8px 16px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+
+        .sound-btn:hover {
+            transform: scale(1.08);
+        }
+
+        /* Блок Камеры */
+        .camera-box {
+            flex: 1;
+            background: #ffffff;
+            border-radius: 28px;
+            border: 6px solid #ffd166;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+        }
+
+        .camera-title {
+            color: #1d3557;
+            font-weight: 900;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .webcam-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 280px;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 4px solid #4cc9f0;
+            background: #000;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .gesture-hint {
+            margin-top: 10px;
+            background: #fff3bf;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            color: #d9480f;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* Игровая Карточка */
+        .quiz-box {
+            flex: 1.3;
+            background: #ffffff;
+            border-radius: 28px;
+            border: 6px solid #ffd166;
+            padding: 25px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+            font-size: 16px;
+            color: #1d3557;
+        }
+
+        .score-badge {
+            background: #ffd166;
+            padding: 6px 14px;
+            border-radius: 20px;
+            color: #000;
+        }
+
+        .question-header {
+            background: #eefcff;
+            border: 3px dashed #4cc9f0;
+            padding: 15px;
+            border-radius: 18px;
+            text-align: center;
+            margin-bottom: 20px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .question-text {
+            font-size: 19px;
+            color: #2b2d42;
+            font-weight: bold;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            flex-grow: 1;
+        }
+
+        .option-card {
+            background: #f8f9fa;
+            border: 4px solid #e9ecef;
+            border-radius: 20px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .option-card:hover {
+            transform: translateY(-2px);
+            border-color: #48cae4;
+        }
+
+        .char-avatar {
+            font-size: 38px;
+            margin-bottom: 4px;
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.15));
+        }
+
+        .option-text {
+            font-size: 15px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+        }
+
+        .gesture-tag {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: #ff70a6;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        .option-card.detected {
+            border-color: #ff9f1c;
+            background: #ffbf69;
+            transform: scale(1.02);
+        }
+
+        .option-card.correct {
+            background: #2ec4b6 !important;
+            border-color: #1098ad !important;
+            color: white !important;
+        }
+
+        .option-card.correct .option-text { color: white; }
+
+        .option-card.wrong {
+            background: #e63946 !important;
+            border-color: #b7094c !important;
+            opacity: 0.6;
+        }
+
+        .option-card.wrong .option-text { color: white; }
+
+        .result-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+
+        .result-screen h2 {
+            font-size: 28px;
+            color: #1d3557;
+            margin-bottom: 10px;
+        }
+
+        .result-score {
+            font-size: 22px;
+            color: #2ec4b6;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .restart-btn {
+            background: #ffd166;
+            border: 3px solid #ffb703;
+            padding: 12px 24px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            background: #ffb703;
+        }
+    </style>
+</head>
+<body onclick="startAudioContext()">
+
+    <button class="sound-btn" id="sound-btn" onclick="toggleSound(event)">🎵 Музыка: Вкл</button>
+
+    <!-- Орнаменты -->
+    <svg class="ornament ornament-tl" viewBox="0 0 100 100" fill="#ffd166">
+        <path d="M50 10 C30 10 20 25 20 40 C20 55 35 60 45 50 C40 45 35 45 35 38 C35 30 42 25 50 25 C58 25 65 30 65 38 C65 45 60 45 55 50 C65 60 80 55 80 40 C80 25 70 10 50 10 Z"/>
+    </svg>
+    <svg class="ornament ornament-tr" viewBox="0 0 100 100" fill="#ffd166">
+        <path d="M50 10 C30 10 20 25 20 40 C20 55 35 60 45 50 C40 45 35 45 35 38 C35 30 42 25 50 25 C58 25 65 30 65 38 C65 45 60 45 55 50 C65 60 80 55 80 40 C80 25 70 10 50 10 Z"/>
+    </svg>
+
+    <div class="container">
+        <!-- Камера -->
+        <div class="camera-box">
+            <div class="camera-title">🎥 Управление рукой</div>
+            <div class="webcam-wrapper">
+                <video id="webcam" autoplay playsinline></video>
+            </div>
+            <div class="gesture-hint" id="gesture-status">
+                Покажите 1, 2, 3 или 4 пальца перед камерой!
+            </div>
+        </div>
+
+        <!-- Викторина -->
+        <div class="quiz-box">
+            <div id="game-screen" style="display: flex; flex-direction: column; height: 100%;">
+                <div class="top-bar">
+                    <span id="question-progress">Вопрос 1 из 10</span>
+                    <span class="score-badge">Баллы: <span id="score-val">0</span></span>
+                </div>
+
+                <div class="question-header">
+                    <div class="question-text" id="question-text">Загрузка...</div>
+                </div>
+
+                <div class="options-grid">
+                    <div class="option-card" id="opt-1" onclick="makeChoice(0)">
+                        <span class="gesture-tag">☝️ 1 палец</span>
+                        <div class="char-avatar">🦊</div>
+                        <div class="option-text" id="text-0"></div>
+                    </div>
+
+                    <div class="option-card" id="opt-2" onclick="makeChoice(1)">
+                        <span class="gesture-tag">✌️ 2 пальца</span>
+                        <div class="char-avatar">🦁</div>
+                        <div class="option-text" id="text-1"></div>
+                    </div>
+
+                    <div class="option-card" id="opt-3" onclick="makeChoice(2)">
+                        <span class="gesture-tag">🤟 3 пальца</span>
+                        <div class="char-avatar">🐼</div>
+                        <div class="option-text" id="text-2"></div>
+                    </div>
+
+                    <div class="option-card" id="opt-4" onclick="makeChoice(3)">
+                        <span class="gesture-tag">🖐️ 4 пальца</span>
+                        <div class="char-avatar">🐸</div>
+                        <div class="option-text" id="text-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Результат -->
+            <div class="result-screen" id="result-screen">
+                <div style="font-size: 60px;">🏆</div>
+                <h2>Викторина завершена!</h2>
+                <div class="result-score" id="final-score">Ваш результат: 0 из 10</div>
+                <button class="restart-btn" onclick="restartQuiz()">Пройти снова 🔄</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Аудиосистема (Web Audio API) ---
+        let audioCtx = null;
+        let isMuted = false;
+        let bgInterval = null;
+
+        function startAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                startBgMusic();
+            }
+        }
+
+        function toggleSound(e) {
+            e.stopPropagation();
+            isMuted = !isMuted;
+            document.getElementById('sound-btn').textContent = isMuted ? "🔇 Музыка: Выкл" : "🎵 Музыка: Вкл";
+        }
+
+        // Синтезирование весёлой фоновой мелодии
+        function playNote(freq, duration, type = 'sine') {
+            if (isMuted || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function startBgMusic() {
+            const melody = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63];
+            let noteIdx = 0;
+            bgInterval = setInterval(() => {
+                playNote(melody[noteIdx], 0.3, 'triangle');
+                noteIdx = (noteIdx + 1) % melody.length;
+            }, 400);
+        }
+
+        // Звуковой эффект победы
+        function playSoundSuccess() {
+            if (isMuted || !audioCtx) return;
+            [523.25, 659.25, 783.99].forEach((freq, i) => {
+                setTimeout(() => playNote(freq, 0.2, 'sine'), i * 100);
+            });
+        }
+
+        // Звуковой эффект ошибки
+        function playSoundError() {
+            if (isMuted || !audioCtx) return;
+            [220, 180].forEach((freq, i) => {
+                setTimeout(() => playNote(freq, 0.3, 'sawtooth'), i * 150);
+            });
+        }
+
+        // --- ВОПРОСЫ ---
+        const questions = [
+            { q: "На какой вопрос отвечает Именительный падеж?", options: ["Кто? Что?", "Кого? Чего?", "Кому? Чему?", "Кем? Чем?"], correct: 0 },
+            { q: "На какой вопрос отвечает Родительный падеж?", options: ["Кому? Чему?", "Кого? Чего?", "Кого? Что?", "О ком? О чём?"], correct: 1 },
+            { q: "На какой вопрос отвечает Дательный падеж?", options: ["Кем? Чем?", "Кто? Что?", "Кому? Чему?", "Кого? Чего?"], correct: 2 },
+            { q: "На какой вопрос отвечает Винительный падеж?", options: ["Кого? Что?", "Кто? Что?", "Кому? Чему?", "О ком? О чём?"], correct: 0 },
+            { q: "На какой вопрос отвечает Творительный падеж?", options: ["Кого? Чего?", "Кому? Чему?", "О ком? О чём?", "Кем? Чем?"], correct: 3 },
+            { q: "На какой вопрос отвечает Предложный падеж?", options: ["Кто? Что?", "О ком? О чём?", "Кем? Чем?", "Кого? Что?"], correct: 1 },
+            { q: "Определите падеж слова: (вижу) **кошку**?", options: ["Именительный", "Родительный", "Винительный", "Дательный"], correct: 2 },
+            { q: "Определите падеж слова: (горжусь) **другом**?", options: ["Творительный", "Предложный", "Родительный", "Винительный"], correct: 0 },
+            { q: "Определите падеж слова: (дарю) **маме**?", options: ["Именительный", "Дательный", "Винительный", "Предложный"], correct: 1 },
+            { q: "Определите падеж слова: (думаю) **о лете**?", options: ["Творительный", "Родительный", "Дательный", "Предложный"], correct: 3 }
+        ];
+
+        let currentQ = 0;
+        let score = 0;
+        let isAnswered = false;
+        let selectedOption = null;
+        let holdTimer = null;
+        let holdCount = 0;
+
+        const videoElement = document.getElementById('webcam');
+        const gestureStatus = document.getElementById('gesture-status');
+
+        function loadQuestion() {
+            isAnswered = false;
+            resetCardStyles();
+
+            const q = questions[currentQ];
+            document.getElementById('question-progress').textContent = `Вопрос ${currentQ + 1} из ${questions.length}`;
+            document.getElementById('question-text').innerHTML = q.q;
+
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`text-${i}`).textContent = q.options[i];
+            }
+        }
+
+        function makeChoice(index) {
+            if (isAnswered) return;
+            isAnswered = true;
+
+            const q = questions[currentQ];
+            const cards = [
+                document.getElementById('opt-1'),
+                document.getElementById('opt-2'),
+                document.getElementById('opt-3'),
+                document.getElementById('opt-4')
+            ];
+
+            if (index === q.correct) {
+                cards[index].classList.add('correct');
+                playSoundSuccess();
+                score++;
+                document.getElementById('score-val').textContent = score;
+            } else {
+                cards[index].classList.add('wrong');
+                cards[q.correct].classList.add('correct');
+                playSoundError();
+            }
+
+            setTimeout(() => {
+                currentQ++;
+                if (currentQ < questions.length) {
+                    loadQuestion();
+                } else {
+                    showResult();
+                }
+            }, 1800);
+        }
+
+        function showResult() {
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'flex';
+            document.getElementById('final-score').textContent = `Вы ответили правильно на ${score} из ${questions.length} вопросов!`;
+            playSoundSuccess();
+        }
+
+        function restartQuiz() {
+            currentQ = 0;
+            score = 0;
+            document.getElementById('score-val').textContent = '0';
+            document.getElementById('result-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            loadQuestion();
+        }
+
+        function resetCardStyles() {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`opt-${i}`).classList.remove('correct', 'wrong', 'detected');
+            }
+        }
+
+        // Трекинг пальцев
+        function countFingers(landmarks) {
+            let count = 0;
+            if (landmarks[8].y < landmarks[6].y) count++;   
+            if (landmarks[12].y < landmarks[10].y) count++; 
+            if (landmarks[16].y < landmarks[14].y) count++; 
+            if (landmarks[20].y < landmarks[18].y) count++; 
+            return count;
+        }
+
+        function onResults(results) {
+            if (isAnswered || currentQ >= questions.length) return;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                let fingers = countFingers(landmarks);
+
+                if (fingers >= 1 && fingers <= 4) {
+                    gestureStatus.textContent = `Пальцев: ${fingers}. Удерживайте...`;
+                    highlightOption(fingers - 1);
+                } else {
+                    resetSelection();
+                }
+            } else {
+                gestureStatus.textContent = "Покажите руку перед камерой";
+                resetSelection();
+            }
+        }
+
+        function highlightOption(index) {
+            if (selectedOption !== index) {
+                resetSelection();
+                selectedOption = index;
+                const card = document.getElementById(`opt-${index + 1}`);
+                if (card) {
+                    card.classList.add('detected');
+                    holdCount = 0;
+                    holdTimer = setInterval(() => {
+                        holdCount++;
+                        if (holdCount >= 8) {
+                            clearInterval(holdTimer);
+                            makeChoice(index);
+                        }
+                    }, 100);
+                }
+            }
+        }
+
+        function resetSelection() {
+            if (holdTimer) clearInterval(holdTimer);
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`opt-${i}`).classList.remove('detected');
+            }
+            selectedOption = null;
+            holdCount = 0;
+        }
+
+        // MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start().catch(() => {
+            gestureStatus.textContent = "⚠️ Камера недоступна (нажимайте на карточки мышкою)";
+        });
+
+        loadQuestion();
+    </script>
+</body>
+</html>
